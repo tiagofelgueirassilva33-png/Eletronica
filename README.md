@@ -1,99 +1,102 @@
-# Eletronica
-## Projeto Ping Pong
 #include <LedControl.h>
+
+// Pinos: DIN, CLK, CS, Número de módulos
 LedControl lc = LedControl(12, 11, 10, 4);
 
-#define xPin A0
-#define yPin A1
+#define xPin1 A0 
+#define xPin2 A1 
 #define buttonPin 2
 
-float Bola_Lin = 4, Bola_Col = 15;
-float Vel_Lin = 1.6;
-float Vel_Col = -0.6;
+float Bola_Lin = 4, Bola_Col = 15; 
+float Vel_Lin = 0.5; // Velocidade ajustada para ser mais suave
+float Vel_Col = -0.5;
 
-unsigned long delaytime = 200;
-
+// Variáveis para evitar o efeito de piscar (flicker)
+int posAntiga[2] = {-1, -1};
 
 
 void setup() {
-
-  for (int m = 0; m < 4; m++) {
-    lc.shutdown(m, false);
-    /* Set the brightness to a medium values */
+  for (int m = 0; m < 4; m++) { 
+    lc.shutdown(m, false);   
     lc.setIntensity(m, 8);
-    /* and clear the display */
-    lc.clearDisplay(m);    
+    lc.clearDisplay(m);
   }
 
-  //  joystick
   pinMode(buttonPin, INPUT_PULLUP);
-
-  randomSeed(analogRead(A2));
+  randomSeed(analogRead(A2)); 
   Serial.begin(9600);
-
 }
 
-void raquetes(int raquete, int pos) {
-  lc.setColumn(3-raquete*3, raquete*7, B00000000);
-  ligaLed(pos - 1,  raquete*31, true);
-  ligaLed(pos,  raquete*31, true);
-  ligaLed(pos + 1,  raquete*31, true);
-  
+void ligaLed(float linha, float coluna, bool liga) { 
+  // Garante que não tentamos desenhar fora dos limites 0-31 e 0-7
+  int c = round(coluna);
+  int l = round(linha);
+  if (c >= 0 && c <= 31 && l >= 0 && l <= 7) {
+    lc.setLed(3 - (c / 8), l, c % 8, liga); 
+  }
 }
 
+void raquetes(int jogador, int posAtual) {  
+  // Só redesenha se a posição mudou, evitando o "flicker"
+  if (posAtual != posAntiga[jogador]) {
+    int coluna = (jogador == 0) ? 0 : 31;
+    // Limpa a coluna do jogador antes de desenhar a nova posição
+    lc.setColumn(3 - (coluna / 8), coluna % 8, B00000000); 
+    
+    ligaLed(posAtual - 1, coluna, true); 
+    ligaLed(posAtual,     coluna, true); 
+    ligaLed(posAtual + 1, coluna, true);
 
-
-
-void ligaLed(float linha, float coluna, bool liga) {
-  lc.setLed(3 - round(coluna) / 8, round(linha), round(coluna) % 8, liga);
+    // Guarda a posição atual para a próxima comparação
+    posAntiga[jogador] = posAtual;
+    
+  }
 }
-
-/*void joystick(int xPin = A0, int yPin = A1, int buttonPin = 2, int xVal,int yVal, int buttonState){
-  
-  xVal = analogRead(xPin);
-  yVal = analogRead(yPin);
-  buttonState = digitalRead(buttonPin);
-
-
-  Serial.print("X: ");
-  Serial.print(xVal);
-  Serial.print(" | Y: ");
-  Serial.print(yVal);
-  Serial.print(" | Button: ");
-  Serial.print(buttonState);
-
-
-}
-*/
-  
-
-
 
 void loop() {
+  // Ler joysticks e mapear posição (limite 1 a 6 para a raquete caber no ecrã)
+  int xVal1 = map(analogRead(xPin1), 10, 1000, 1, 6); 
+  int xVal2 = map(analogRead(xPin2), 10, 1000, 1, 6); 
 
-  // definir posição da raquete
-  // ler os valores do X do joystick
-  int xVal1 = analogRead(xPin1);
-  int xVal2 = analogRead(xPin2);
+  raquetes(0, xVal1); 
+  raquetes(1, xVal2);
+
+  // Lógica da Bola
   
-  Serial.println(xVal1);
-  raquetes(0, map(xVal1, 0,1010, 0,7));
-  raquetes(1, map(xVal2, 0,1010, 0,7));
 
-  ligaLed(Bola_Lin, Bola_Col, false);
+  // Colisão com as paredes de cima e baixo
+  if (Bola_Lin + Vel_Lin > 7 || Bola_Lin + Vel_Lin < 0) { 
+    Vel_Lin *= -1; 
+  } 
+  
+  // Colisão com as laterais (ponto ou rebote)
+  if (Bola_Col + Vel_Col > 30 || Bola_Col + Vel_Col < 1) { 
+    if (Bola_Col < 1) 
+      if (BolaCol >= xVal1-1 && BolaCol <= xVal1+1){
+        Vel_Col *= -1;
+      }
+      else{
+        delay(5000); // perdeu o 1
+      }
+    else{  // teste jogador 2
+      if (BolaCol >= xVal2-1 && BolaCol <= xVal2+1){
+        Vel_Col *= -1;
+      }
+      else{
+        delay(5000); // perdeu o 2
+      }
+    }
+     
 
-  if (Bola_Lin + Vel_Lin > 7 || Bola_Lin + Vel_Lin < 0) {
-    Vel_Lin *= -1;
+    // Pequena variação aleatória no rebote para o jogo não ser infinito
+    Vel_Lin = (random(5, 15) / 10.0) * (Vel_Lin > 0 ? 1 : -1); 
   }
-  Bola_Lin = Bola_Lin + Vel_Lin;
 
-  if (Bola_Col + Vel_Col > 31 || Bola_Col + Vel_Col < 0) {
-    Vel_Col *= -1;
-    Vel_Lin *= random(2, 20) / 10;
-  }
+  ligaLed(Bola_Lin, Bola_Col, false); // Apaga posição anterior
+  Bola_Lin += Vel_Lin;
   Bola_Col += Vel_Col;
-
-
-  ligaLed(Bola_Lin, Bola_Col, true);
-  delay(40);
+  if (1){
+    ligaLed(Bola_Lin, Bola_Col, true); // Desenha nova posição
+  }
+  delay(30); 
 }
