@@ -40,29 +40,24 @@ void setup() {
   Serial.begin(9600);
 }
 
-// Mostra o placar nos módulos centrais
 void desenhaPontos() {
   for(int m = 0; m < 4; m++) lc.clearDisplay(m); 
-
   for (int i = 0; i < 5; i++) {
-    lc.setRow(2, i + 1, numeros[pontos[0]][i]); // J1 na Matriz 2
-    lc.setRow(1, i + 1, numeros[pontos[1]][i]); // J2 na Matriz 1
+    lc.setRow(2, i + 1, numeros[pontos[0]][i]); 
+    lc.setRow(1, i + 1, numeros[pontos[1]][i]); 
   }
 }
 
-// Animação de Vitória e Derrota
 void animacaoFinal(int vencedor) {
   for(int m = 0; m < 4; m++) lc.clearDisplay(m);
-
-  // Pisca as letras 3 vezes para o final do jogo
   for (int r = 0; r < 3; r++) {
     for (int i = 0; i < 5; i++) {
-      if (vencedor == 0) { // Jogador 1 venceu (Esquerda)
-        lc.setRow(3, i + 1, letraW[i]); // W na ponta esquerda
-        lc.setRow(0, i + 1, letraL[i]); // L na ponta direita
-      } else { // Jogador 2 venceu (Direita)
-        lc.setRow(0, i + 1, letraW[i]); // W na ponta direita
-        lc.setRow(3, i + 1, letraL[i]); // L na ponta esquerda
+      if (vencedor == 0) { 
+        lc.setRow(3, i + 1, letraW[i]); 
+        lc.setRow(0, i + 1, letraL[i]); 
+      } else { 
+        lc.setRow(0, i + 1, letraW[i]); 
+        lc.setRow(3, i + 1, letraL[i]); 
       }
     }
     delay(500);
@@ -93,75 +88,74 @@ void raquetes(int jogador, int posAtual) {
 void processaPonto(int jogadorVencedor) {
   pontos[jogadorVencedor]++;
   
-  // Se alguém atingir o limite (3), faz a animação final de Winner/Loser
   if (pontos[jogadorVencedor] >= LIMITE_PONTOS) {
     animacaoFinal(jogadorVencedor);
     pontos[0] = 0;
     pontos[1] = 0;
   } else {
-    // Caso contrário, apenas mostra o placar normal por 2 segundos
     desenhaPontos();
     delay(2000);
   }
 
-  // Reinicia o campo e a bola
   lc.clearDisplay(1);
   lc.clearDisplay(2);
   
   Bola_Lin = 4; 
   Bola_Col = 15;
-  Vel_Col = (jogadorVencedor == 0) ? 0.5 : -0.5; // Lança a bola para quem perdeu o ponto
+  // Define direção inicial da bola e reseta velocidade vertical
+  Vel_Col = (jogadorVencedor == 0) ? 0.5 : -0.5; 
+  Vel_Lin = (random(0, 2) == 0) ? 0.4 : -0.4; 
+  
   posAntiga[0] = -1; 
   posAntiga[1] = -1;
 }
 
 void loop() {
-  // Leitura dos Joysticks
   int yRaq1 = map(analogRead(xPin1), 0, 1023, 1, 6); 
   int yRaq2 = map(analogRead(xPin2), 0, 1023, 1, 6); 
 
-  // Apaga rastro da bola
   ligaLed(Bola_Lin, Bola_Col, false);
 
-  // Move a bola
   Bola_Lin += Vel_Lin;
   Bola_Col += Vel_Col;
 
   // Ressalto teto/chão
   if (Bola_Lin <= 0 || Bola_Lin >= 7) Vel_Lin *= -1; 
   
-  // Colisão Raquete Jogador 1 (Esquerda)
+  // COLISÃO JOGADOR 1 (ESQUERDA)
   if (Bola_Col <= 0) { 
     if (round(Bola_Lin) >= yRaq1 - 1 && round(Bola_Lin) <= yRaq1 + 1) {
-      Vel_Col *= -1;
-      // Tua lógica de física: variação de velocidade se não bater no centro
+      Vel_Col = abs(Vel_Col); // Garante movimento para a DIREITA (+)
+      
       if (round(Bola_Lin) != yRaq1){
-        Vel_Col *= random(5, 20) / 10.0;
-        Vel_Col = max(min(Vel_Col, 2.5), 0.25);
+        Vel_Col *= random(8, 15) / 10.0; // Variação leve
       }
-      Bola_Col = 1;
+      Vel_Col = max(min(Vel_Col, 2.0), 0.4); // Limita velocidade positiva
+      Bola_Col = 1; 
     } else {
-      processaPonto(1); // Ponto para o Jogador 2
+      processaPonto(1); 
     }
   } 
-  // Colisão Raquete Jogador 2 (Direita)
+  // COLISÃO JOGADOR 2 (DIREITA)
   else if (Bola_Col >= 31) { 
     if (round(Bola_Lin) >= yRaq2 - 1 && round(Bola_Lin) <= yRaq2 + 1) {
-      Vel_Col *= -1;
+      Vel_Col = -abs(Vel_Col); // Garante movimento para a ESQUERDA (-)
+      
       if (round(Bola_Lin) != yRaq2 ){
-        Vel_Col *= random(5, 20) / 10.0;
-        Vel_Col = max(min(Vel_Col, 2.5), 0.25);
+        // Calculamos o aumento baseado no valor absoluto para não inverter o sinal
+        float magnitude = abs(Vel_Col) * (random(8, 15) / 10.0);
+        magnitude = max(min(magnitude, 2.0), 0.4);
+        Vel_Col = -magnitude; // Reaplica o sinal negativo
       }
       Bola_Col = 30;
     } else {
-      processaPonto(0); // Ponto para o Jogador 1
+      processaPonto(0);
     }
   }
 
-  // Atualiza raquetes e bola
   raquetes(0, yRaq1); 
   raquetes(1, yRaq2);
   ligaLed(Bola_Lin, Bola_Col, true); 
   
-  delay(30); 
+  delay(35); 
 }
